@@ -6,8 +6,8 @@ import fs from "fs";
 // Function to validate if a string is a valid URL
 function isValidUrl(string) {
   try {
-    new URL(string);
-    return true;
+    // eslint-disable-next-line no-new
+    return Boolean(new URL(string));
   } catch (_) {
     return false;
   }
