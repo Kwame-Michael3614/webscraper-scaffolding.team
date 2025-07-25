@@ -37,14 +37,30 @@ function extractImages(document, baseUrl) {
   return [...new Set(images)].sort();
 }
 
-// Extract both links and images
-function extractUniqueUrls(document, baseUrl) {
-  const links = extractLinks(document, baseUrl);
-  const images = extractImages(document, baseUrl);
-  return { links, images };
+// NEW: Extract email addresses
+function extractEmails(document) {
+  const textContent = document.body.textContent;
+  const mailtoLinks = [...document.querySelectorAll("a[href^='mailto:']")]
+    .map(a => a.getAttribute("href").replace(/^mailto:/i, ""))
+    .filter(Boolean);
+
+  const regexEmails = Array.from(new Set(
+    [...textContent.matchAll(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g)].map(m => m[0])
+  ));
+
+  const allEmails = [...new Set([...mailtoLinks, ...regexEmails])].sort();
+  return allEmails;
 }
 
-// Main scraping function
+// Extract everything
+function extractUniqueContent(document, baseUrl) {
+  const links = extractLinks(document, baseUrl);
+  const images = extractImages(document, baseUrl);
+  const emails = extractEmails(document);
+  return { links, images, emails };
+}
+
+// Scraping function
 async function scrapeWebsite(url) {
   try {
     console.log(`🔎 Scraping: ${url}`);
@@ -55,15 +71,13 @@ async function scrapeWebsite(url) {
       },
     });
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! Status: ${response.status}`);
-    }
+    if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
 
     const html = await response.text();
     const dom = new JSDOM(html, { url });
     const { document } = dom.window;
 
-    const { links, images } = extractUniqueUrls(document, url);
+    const { links, images, emails } = extractUniqueContent(document, url);
 
     const results = {
       originalUrl: url,
@@ -71,6 +85,7 @@ async function scrapeWebsite(url) {
       stats: {
         totalLinks: links.length,
         totalImages: images.length,
+        totalEmails: emails.length,
         externalLinks: links.filter(link => !link.startsWith(new URL(url).origin)).length,
         internalLinks: links.filter(link => link.startsWith(new URL(url).origin)).length,
       },
@@ -85,6 +100,7 @@ async function scrapeWebsite(url) {
           height: img?.getAttribute("height") || "unknown",
         };
       }),
+      emails,
     };
 
     return results;
@@ -104,6 +120,7 @@ function displayResults(results) {
   console.log(`   └─ Internal: ${results.stats.internalLinks}`);
   console.log(`   └─ External: ${results.stats.externalLinks}`);
   console.log(`🖼️  Total Images: ${results.stats.totalImages}`);
+  console.log(`📧 Total Emails: ${results.stats.totalEmails}`);
 
   console.log("\n📋 LINKS:");
   results.links.forEach((link, i) => {
@@ -119,15 +136,21 @@ function displayResults(results) {
     if (img.title) console.log(`   Title: ${img.title}`);
     console.log("");
   });
+
+  console.log("\n📧 EMAILS:");
+  results.emails.forEach((email, i) => {
+    console.log(`${i + 1}. ${email}`);
+  });
 }
 
 // CLI runner
 async function main() {
   const url = process.argv[2];
+  const customFilename = process.argv[3]; // Optional filename
 
   if (!url) {
     console.error("❌ Please provide a URL as an argument");
-    console.log('Usage: node webscraper.js "https://example.com"');
+    console.log('Usage: node webscraper.js "https://example.com" [optional-filename]');
     process.exit(1);
   }
 
@@ -140,12 +163,17 @@ async function main() {
     const results = await scrapeWebsite(url);
     displayResults(results);
 
-    const filename = `scrape_results_${Date.now()}.json`;
+    // Use custom filename or default timestamped filename
+    const filename = customFilename
+      ? (customFilename.endsWith(".json") ? customFilename : `${customFilename}.json`)
+      : `scrape_results_${Date.now()}.json`;
+
     fs.writeFileSync(filename, JSON.stringify(results, null, 2));
     console.log(`\n💾 Saved to: ${filename}`);
   } catch (error) {
     console.error("❌ Scraper failed:", error.message);
   }
 }
+
 
 main();
