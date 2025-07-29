@@ -27,6 +27,10 @@
   },
   "dependencies": {
     "jsdom": "^26.1.0",
-    "node-fetch": "^3.3.2"
+    "nightmare": "^3.0.2",
+    "node-fetch": "^3.3.2",
+    "puppeteer": "^24.15.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
   }
 }

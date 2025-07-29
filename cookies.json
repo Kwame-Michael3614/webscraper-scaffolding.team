@@ -1,0 +1,18 @@
+[
+  {
+    "name": "cf_chl_rc_m",
+    "value": "1",
+    "domain": "www.ibba.org",
+    "path": "/",
+    "expires": 1753760184,
+    "size": 12,
+    "httpOnly": false,
+    "secure": true,
+    "session": false,
+    "sameSite": "None",
+    "priority": "Medium",
+    "sameParty": false,
+    "sourceScheme": "Secure",
+    "partitionKey": "https://ibba.org"
+  }
+]

@@ -1,9 +1,15 @@
+// webscraper.js
 import fetch from "node-fetch";
 import { JSDOM } from "jsdom";
 import { URL } from "url";
 import fs from "fs";
+import puppeteer from "puppeteer-extra";
+import StealthPlugin from "puppeteer-extra-plugin-stealth";
+puppeteer.use(StealthPlugin());
 
-// Validate if a string is a valid URL
+const COOKIES_PATH = "./cookies.json";
+const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+
 function isValidUrl(string) {
   try {
     return Boolean(new URL(string));
@@ -12,7 +18,6 @@ function isValidUrl(string) {
   }
 }
 
-// Convert relative URLs to absolute
 function toAbsoluteUrl(relativeUrl, baseUrl) {
   try {
     return new URL(relativeUrl, baseUrl).href;
@@ -21,101 +26,191 @@ function toAbsoluteUrl(relativeUrl, baseUrl) {
   }
 }
 
-// Extract unique absolute links
 function extractLinks(document, baseUrl) {
-  const links = [...document.querySelectorAll("a[href]")]
-    .map(a => toAbsoluteUrl(a.getAttribute("href"), baseUrl))
-    .filter(Boolean);
-  return [...new Set(links)].sort();
+  return [...new Set(
+    [...document.querySelectorAll("a[href]")]
+      .map(a => toAbsoluteUrl(a.getAttribute("href"), baseUrl))
+      .filter(Boolean)
+  )].sort();
 }
 
-// Extract unique absolute image URLs
 function extractImages(document, baseUrl) {
-  const images = [...document.querySelectorAll("img[src]")]
-    .map(img => toAbsoluteUrl(img.getAttribute("src"), baseUrl))
-    .filter(Boolean);
-  return [...new Set(images)].sort();
+  return [...new Set(
+    [...document.querySelectorAll("img[src]")]
+      .map(img => toAbsoluteUrl(img.getAttribute("src"), baseUrl))
+      .filter(Boolean)
+  )].sort();
 }
 
-// NEW: Extract email addresses
 function extractEmails(document) {
   const textContent = document.body.textContent;
   const mailtoLinks = [...document.querySelectorAll("a[href^='mailto:']")]
     .map(a => a.getAttribute("href").replace(/^mailto:/i, ""))
     .filter(Boolean);
-
-  const regexEmails = Array.from(new Set(
-    [...textContent.matchAll(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g)].map(m => m[0])
-  ));
-
-  const allEmails = [...new Set([...mailtoLinks, ...regexEmails])].sort();
-  return allEmails;
+  const regexEmails = Array.from(new Set([
+    ...textContent.matchAll(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g)
+  ].map(m => m[0])));
+  return [...new Set([...mailtoLinks, ...regexEmails])].sort();
 }
 
-// Extract everything
-function extractUniqueContent(document, baseUrl) {
-  const links = extractLinks(document, baseUrl);
-  const images = extractImages(document, baseUrl);
+function buildResults(document, url, extraData = {}) {
+  const links = extractLinks(document, url);
+  const images = extractImages(document, url);
   const emails = extractEmails(document);
-  return { links, images, emails };
+  return {
+    originalUrl: url,
+    timestamp: new Date().toISOString(),
+    stats: {
+      totalLinks: links.length,
+      totalImages: images.length,
+      totalEmails: emails.length,
+      externalLinks: links.filter(link => !link.startsWith(new URL(url).origin)).length,
+      internalLinks: links.filter(link => link.startsWith(new URL(url).origin)).length,
+    },
+    links,
+    images: images.map(src => {
+      const img = document.querySelector(`img[src="${src}"]`);
+      return {
+        url: src,
+        alt: img?.getAttribute("alt") || "",
+        title: img?.getAttribute("title") || "",
+        width: img?.getAttribute("width") || "unknown",
+        height: img?.getAttribute("height") || "unknown",
+      };
+    }),
+    emails,
+    ...extraData,
+  };
 }
 
-// Scraping function
-async function scrapeWebsite(url) {
+async function saveCookies(page) {
+  const cookies = await page.cookies();
+  fs.writeFileSync(COOKIES_PATH, JSON.stringify(cookies, null, 2));
+  console.log("💾 Cookies saved to", COOKIES_PATH);
+}
+
+async function loadCookies(page) {
+  if (!fs.existsSync(COOKIES_PATH)) return false;
+  const cookies = JSON.parse(fs.readFileSync(COOKIES_PATH));
+  await page.setCookie(...cookies);
+  console.log("📥 Cookies loaded from", COOKIES_PATH);
+  return true;
+}
+
+async function simulateHuman(page) {
+  await page.setViewport({ width: 1366, height: 768 });
+  await page.mouse.move(100, 100);
+  await wait(300);
+  await page.mouse.move(300, 300, { steps: 20 });
+  await page.evaluate(async () => {
+    await new Promise(resolve => {
+      let totalHeight = 0;
+      const distance = 100;
+      const timer = setInterval(() => {
+        window.scrollBy(0, distance);
+        totalHeight += distance;
+        if (totalHeight >= document.body.scrollHeight) {
+          clearInterval(timer);
+          resolve();
+        }
+      }, 200);
+    });
+  });
+  await wait(1500);
+}
+
+async function scrapeIBBABrokers(url) {
+  const browser = await puppeteer.launch({ headless: false, args: ["--no-sandbox"] });
+  const page = await browser.newPage();
+  await loadCookies(page);
+
+  await page.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36");
+  await page.setExtraHTTPHeaders({ "Accept-Language": "en-US,en;q=0.9" });
+  console.log("🌐 Visiting IBBA Broker Directory...");
+  await page.goto(url, { waitUntil: "domcontentloaded" });
+
   try {
-    console.log(`🔎 Scraping: ${url}`);
+    await page.waitForSelector("#location", { timeout: 60000 });
+  } catch (e) {
+    console.error("❌ #location selector not found. Saving debug HTML...");
+    const html = await page.content();
+    fs.writeFileSync("debug_page.html", html);
+    throw new Error("Element #location not found in time.");
+  }
+
+  await simulateHuman(page);
+  await page.type("#location", "California");
+  await page.keyboard.press("Enter");
+  await wait(6000);
+  await saveCookies(page);
+
+  const loadMoreSelector = "button.load-more";
+  while (await page.$(loadMoreSelector)) {
+    const isHidden = await page.evaluate(sel => {
+      const btn = document.querySelector(sel);
+      return !btn || btn.disabled || btn.offsetParent === null;
+    }, loadMoreSelector);
+    if (isHidden) break;
+    console.log("➡️ Clicking 'Load More'...");
+    await page.click(loadMoreSelector);
+    await wait(2000);
+  }
+
+  console.log("✅ All brokers loaded.");
+  const profileUrls = await page.$$eval(".broker-listing a.broker-name", links => links.map(a => a.href));
+  console.log(`🔗 Found ${profileUrls.length} broker profiles.`);
+
+  const brokers = [];
+  for (let i = 0; i < profileUrls.length; i++) {
+    const profileUrl = profileUrls[i];
+    console.log(`🔍 Scraping ${i + 1}/${profileUrls.length}: ${profileUrl}`);
+    const brokerPage = await browser.newPage();
+    try {
+      await brokerPage.goto(profileUrl, { waitUntil: "domcontentloaded" });
+      const broker = await brokerPage.evaluate(() => {
+        const getText = sel => document.querySelector(sel)?.textContent.trim() || "";
+        const firm = getText(".broker-firm-name");
+        const contact = getText(".broker-contact-name");
+        const emailEl = document.querySelector("a[href^='mailto:']");
+        const email = emailEl ? emailEl.getAttribute("href").replace(/^mailto:/i, "") : "";
+        return { firm, contact, email };
+      });
+      brokers.push({ url: profileUrl, ...broker });
+    } catch {
+      console.warn(`⚠️ Failed profile: ${profileUrl}`);
+    } finally {
+      await brokerPage.close();
+    }
+  }
+
+  const html = await page.content();
+  const dom = new JSDOM(html, { url });
+  const { document } = dom.window;
+  await browser.close();
+  return buildResults(document, url, { brokers });
+}
+
+async function scrapeWebsite(url) {
+  console.log(`🔎 Scraping: ${url}`);
+  try {
     const response = await fetch(url, {
       headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-      },
+        "User-Agent": "Mozilla/5.0 Chrome/91 Safari/537.36"
+      }
     });
-
     if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
-
     const html = await response.text();
     const dom = new JSDOM(html, { url });
-    const { document } = dom.window;
-
-    const { links, images, emails } = extractUniqueContent(document, url);
-
-    const results = {
-      originalUrl: url,
-      timestamp: new Date().toISOString(),
-      stats: {
-        totalLinks: links.length,
-        totalImages: images.length,
-        totalEmails: emails.length,
-        externalLinks: links.filter(link => !link.startsWith(new URL(url).origin)).length,
-        internalLinks: links.filter(link => link.startsWith(new URL(url).origin)).length,
-      },
-      links,
-      images: images.map(src => {
-        const img = document.querySelector(`img[src="${src}"]`);
-        return {
-          url: src,
-          alt: img?.getAttribute("alt") || "",
-          title: img?.getAttribute("title") || "",
-          width: img?.getAttribute("width") || "unknown",
-          height: img?.getAttribute("height") || "unknown",
-        };
-      }),
-      emails,
-    };
-
-    return results;
-  } catch (error) {
-    console.error("❌ Error:", error.message);
-    throw error;
+    return buildResults(dom.window.document, url);
+  } catch (err) {
+    console.warn("⚠️ Static scraping failed. Falling back to Puppeteer...");
+    return url.includes("ibba.org") ? await scrapeIBBABrokers(url) : await scrapeWithPuppeteer(url);
   }
 }
 
-// Display nicely in console
 function displayResults(results) {
-  console.log(`\n📊 SCRAPING RESULTS`);
-  console.log("=".repeat(60));
-  console.log(`🌐 URL: ${results.originalUrl}`);
-  console.log(`🕒 Time: ${results.timestamp}`);
+  console.log(`\n📊 SCRAPING RESULTS\n${"=".repeat(60)}`);
+  console.log(`🌐 URL: ${results.originalUrl}\n🕒 Time: ${results.timestamp}`);
   console.log(`🔗 Total Links: ${results.stats.totalLinks}`);
   console.log(`   └─ Internal: ${results.stats.internalLinks}`);
   console.log(`   └─ External: ${results.stats.externalLinks}`);
@@ -128,52 +223,25 @@ function displayResults(results) {
     console.log(`${i + 1}. ${type} ${link}`);
   });
 
-  console.log("\n🖼️  IMAGES:");
-  results.images.forEach((img, i) => {
-    console.log(`${i + 1}. ${img.alt || "No alt text"}`);
-    console.log(`   URL: ${img.url}`);
-    console.log(`   Size: ${img.width} x ${img.height}`);
-    if (img.title) console.log(`   Title: ${img.title}`);
-    console.log("");
-  });
-
-  console.log("\n📧 EMAILS:");
-  results.emails.forEach((email, i) => {
-    console.log(`${i + 1}. ${email}`);
-  });
+  if (results.brokers) {
+    console.log(`\n🤝 BROKERS (${results.brokers.length}):`);
+    results.brokers.forEach((b, i) => {
+      console.log(`${i + 1}. Firm: ${b.firm}, Contact: ${b.contact}, Email: ${b.email || "N/A"}`);
+      console.log(`   Profile: ${b.url}`);
+    });
+  }
 }
 
-// CLI runner
-async function main() {
+(async () => {
   const url = process.argv[2];
-  const customFilename = process.argv[3]; // Optional filename
-
-  if (!url) {
-    console.error("❌ Please provide a URL as an argument");
-    console.log('Usage: node webscraper.js "https://example.com" [optional-filename]');
-    process.exit(1);
-  }
-
-  if (!isValidUrl(url)) {
-    console.error("❌ Invalid URL format");
-    process.exit(1);
-  }
-
+  if (!url || !isValidUrl(url)) return console.error("❌ Invalid or missing URL");
   try {
     const results = await scrapeWebsite(url);
     displayResults(results);
-
-    // Use custom filename or default timestamped filename
-    const filename = customFilename
-      ? (customFilename.endsWith(".json") ? customFilename : `${customFilename}.json`)
-      : `scrape_results_${Date.now()}.json`;
-
+    const filename = `scrape_results_${Date.now()}.json`;
     fs.writeFileSync(filename, JSON.stringify(results, null, 2));
     console.log(`\n💾 Saved to: ${filename}`);
-  } catch (error) {
-    console.error("❌ Scraper failed:", error.message);
+  } catch (err) {
+    console.error("❌ Scraper failed:", err.message);
   }
-}
-
-
-main();
+})();
