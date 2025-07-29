@@ -26,11 +26,14 @@
     "prettier": "^2.3.1"
   },
   "dependencies": {
+    "chalk": "^5.4.1",
     "jsdom": "^26.1.0",
+    "minimist": "^1.2.8",
     "nightmare": "^3.0.2",
-    "node-fetch": "^3.3.2",
+    "node-fetch": "^2.7.0",
     "puppeteer": "^24.15.0",
     "puppeteer-extra": "^3.3.6",
-    "puppeteer-extra-plugin-stealth": "^2.11.2"
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "puppeteer-real-browser": "^1.4.3"
   }
 }
