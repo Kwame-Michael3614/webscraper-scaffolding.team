@@ -1,0 +1,95 @@
+[
+  {
+    "name": "Craft World",
+    "genres": [
+      "Indie",
+      "Android",
+      "iOS",
+      "Web browser",
+      "Read more",
+      "crafting",
+      "blockchain",
+      "blockchain game",
+      "crypto"
+    ],
+    "platforms": [
+      "nft"
+    ],
+    "releaseDate": "Unknown",
+    "publishers": [],
+    "gameCoverUrl": "https://images.igdb.com/igdb/image/upload/t_cover_small/coa4wd.png",
+    "gameUrl": "https://www.igdb.com/games/craft-world"
+  },
+  {
+    "name": "Co-op Kaiju Horror Cooking",
+    "genres": [
+      "Simulator",
+      "Strategy",
+      "Indie",
+      "PC (Microsoft Windows)"
+    ],
+    "platforms": [
+      "Read more"
+    ],
+    "releaseDate": "Unknown",
+    "publishers": [],
+    "gameCoverUrl": "https://images.igdb.com/igdb/image/upload/t_cover_small/coa4r1.png",
+    "gameUrl": "https://www.igdb.com/games/co-op-kaiju-horror-cooking"
+  },
+  {
+    "name": "Infinity Nikki: Danqing Season",
+    "genres": [
+      "Music",
+      "Platform",
+      "Role-playing (RPG)",
+      "Adventure",
+      "Android",
+      "iOS",
+      "PC (Microsoft Windows)",
+      "PlayStation 5",
+      "Infinity Nikki"
+    ],
+    "platforms": [
+      "Read more"
+    ],
+    "releaseDate": "Unknown",
+    "publishers": [],
+    "gameCoverUrl": "https://images.igdb.com/igdb/image/upload/t_cover_small/coa6ca.png",
+    "gameUrl": "https://www.igdb.com/games/infinity-nikki-danqing-season"
+  },
+  {
+    "name": "Subroutine",
+    "genres": [
+      "Simulator",
+      "Adventure",
+      "Indie",
+      "Mac",
+      "PC (Microsoft Windows)",
+      "factory"
+    ],
+    "platforms": [
+      "nextfest june 2025"
+    ],
+    "releaseDate": "Unknown",
+    "publishers": [],
+    "gameCoverUrl": "https://images.igdb.com/igdb/image/upload/t_cover_small/co9ust.png",
+    "gameUrl": "https://www.igdb.com/games/subroutine"
+  },
+  {
+    "name": "My Father Lied",
+    "genres": [
+      "Point-and-click",
+      "Puzzle",
+      "Adventure",
+      "Indie",
+      "PC (Microsoft Windows)"
+    ],
+    "platforms": [
+      "lovecraftian"
+    ],
+    "releaseDate": "Unknown",
+    "publishers": [],
+    "gameCoverUrl": "https://images.igdb.com/igdb/image/upload/t_cover_small/co78m4.png",
+    "gameUrl": "https://www.igdb.com/games/my-father-lied"
+  }
+]
